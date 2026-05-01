@@ -14,6 +14,7 @@
       <h1>⏱ 时间记录</h1>
       <div class="header-actions">
         <button id="themeToggle" class="btn-icon" title="切换深色/浅色模式">🌙</button>
+        <button id="tagManagerBtn" class="btn-secondary" title="管理标签">🏷️ 标签管理</button>
         <button id="exportBtn" class="btn-secondary" title="导出记录为CSV">📤 导出</button>
         <button id="importBtn" class="btn-secondary" title="从CSV导入记录">📥 导入</button>
       </div>
@@ -32,10 +33,7 @@
           <button id="timerBtn" class="btn-primary btn-timer">▶ 开始计时</button>
           <div class="timer-meta">
             <select id="timerTag" class="select-field">
-              <option value="工作">💼 工作</option>
-              <option value="学习">📚 学习</option>
-              <option value="生活">🏠 生活</option>
-              <option value="娱乐">🎮 娱乐</option>
+              <!-- 动态加载 -->
             </select>
             <input type="text" id="timerActivity" class="input-field" placeholder="正在做什么？（可选）">
           </div>
@@ -57,10 +55,7 @@
           </div>
           <div class="form-group">
             <select id="manualTag" class="select-field">
-              <option value="工作">💼 工作</option>
-              <option value="学习">📚 学习</option>
-              <option value="生活">🏠 生活</option>
-              <option value="娱乐">🎮 娱乐</option>
+              <!-- 动态加载 -->
             </select>
           </div>
           <button id="addManualBtn" class="btn-primary btn-full">添加记录</button>
@@ -154,15 +149,77 @@
       <div class="form-group">
         <label>标签</label>
         <select id="editTag" class="select-field">
-          <option value="工作">💼 工作</option>
-          <option value="学习">📚 学习</option>
-          <option value="生活">🏠 生活</option>
-          <option value="娱乐">🎮 娱乐</option>
+          <!-- 动态加载 -->
         </select>
       </div>
       <div class="modal-actions">
         <button id="saveEditBtn" class="btn-primary">保存</button>
         <button id="cancelEditBtn" class="btn-secondary">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 标签管理弹窗 -->
+  <div id="tagManagerModal" class="modal-overlay hidden">
+    <div class="modal-card tag-manager-card">
+      <div class="modal-header">
+        <h3>🏷️ 标签管理</h3>
+        <button id="addNewTagBtn" class="btn-primary">+ 新建标签</button>
+      </div>
+      <div class="tag-list" id="tagList">
+        <!-- 动态加载标签列表 -->
+      </div>
+      <div class="modal-actions">
+        <button id="closeTagManagerBtn" class="btn-secondary">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 标签编辑/添加弹窗 -->
+  <div id="tagEditModal" class="modal-overlay hidden">
+    <div class="modal-card">
+      <h3 id="tagEditTitle">🏷️ 编辑标签</h3>
+      <div class="form-group">
+        <label>标签名称</label>
+        <input type="text" id="tagPathName" class="input-field" placeholder="输入标签名称">
+      </div>
+      <div class="form-group">
+        <label>图标 (Emoji)</label>
+        <input type="text" id="tagIcon" class="input-field" placeholder="例如: 💼, 📚, 🚀">
+        <div class="emoji-presets" id="emojiPresets">
+          <span>💼</span><span>📚</span><span>🏠</span><span>🎮</span><span>🚀</span><span>🍳</span><span>💪</span><span>🎨</span><span>💤</span><span>🛠️</span>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>主题颜色</label>
+        <input type="color" id="tagColor" class="input-field color-input">
+      </div>
+      <div class="modal-actions">
+        <button id="saveTagBtn" class="btn-primary">保存</button>
+        <button id="cancelTagBtn" class="btn-secondary">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 删除标签确认弹窗 -->
+  <div id="tagDeleteModal" class="modal-overlay hidden">
+    <div class="modal-card">
+      <h3>⚠️ 删除标签</h3>
+      <p id="deleteTagMsg">该标签下有历史记录，请选择处理方式：</p>
+      <div class="delete-options">
+        <label class="radio-label">
+          <input type="radio" name="deleteAction" value="clear" checked>
+          保留记录，标签设为空
+        </label>
+        <label class="radio-label" id="mergeOptionLabel">
+          <input type="radio" name="deleteAction" value="merge">
+          合并到默认标签: 
+          <select id="mergeTargetTag" class="select-field inline-select"></select>
+        </label>
+      </div>
+      <div class="modal-actions">
+        <button id="confirmDeleteTagBtn" class="btn-danger">确认删除</button>
+        <button id="cancelDeleteTagBtn" class="btn-secondary">取消</button>
       </div>
     </div>
   </div>

@@ -21,6 +21,10 @@ function getRecordsPath() {
   return path.join(ensureDataDir(), 'records.json');
 }
 
+function getTagsPath() {
+  return path.join(ensureDataDir(), 'tags.json');
+}
+
 function loadRecords() {
   const filePath = getRecordsPath();
   if (!fs.existsSync(filePath)) {
@@ -37,6 +41,29 @@ function loadRecords() {
 function saveRecords(data) {
   const filePath = getRecordsPath();
   fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8');
+}
+
+function loadTags() {
+  const filePath = getTagsPath();
+  if (!fs.existsSync(filePath)) {
+    return [
+      { id: 't1', name: '工作', icon: '💼', color: '#4A90D9' },
+      { id: 't2', name: '学习', icon: '📚', color: '#7B68EE' },
+      { id: 't3', name: '生活', icon: '🏠', color: '#50AA78' },
+      { id: 't4', name: '娱乐', icon: '🎮', color: '#F08070' }
+    ];
+  }
+  try {
+    const raw = fs.readFileSync(filePath, 'utf-8');
+    return JSON.parse(raw);
+  } catch (e) {
+    return [];
+  }
+}
+
+function saveTags(tags) {
+  const filePath = getTagsPath();
+  fs.writeFileSync(filePath, JSON.stringify(tags, null, 2), 'utf-8');
 }
 
 let mainWindow;
@@ -79,6 +106,15 @@ ipcMain.handle('load-records', () => {
 
 ipcMain.handle('save-records', (_event, data) => {
   saveRecords(data);
+  return true;
+});
+
+ipcMain.handle('load-tags', () => {
+  return loadTags();
+});
+
+ipcMain.handle('save-tags', (_event, tags) => {
+  saveTags(tags);
   return true;
 });
 
