@@ -78,6 +78,28 @@
           <span class="date-total" id="dateTotal">总计 0 小时</span>
         </div>
 
+        <!-- 时间范围筛选 -->
+        <div class="range-bar card hidden" id="rangeBar">
+          <div class="range-bar-top">
+            <button id="rangeToggle" class="btn-secondary" title="切换时间范围模式">📅 时间范围</button>
+            <div class="range-pickers" id="rangePickers" style="display:none">
+              <label>从</label>
+              <input type="date" id="rangeStartPicker" class="input-field range-input">
+              <label>至</label>
+              <input type="date" id="rangeEndPicker" class="input-field range-input">
+              <div class="range-presets">
+                <button class="preset-btn" data-preset="today">今天</button>
+                <button class="preset-btn" data-preset="week">本周</button>
+                <button class="preset-btn" data-preset="month">本月</button>
+                <button class="preset-btn" data-preset="last7">近7天</button>
+                <button class="preset-btn" data-preset="last30">近30天</button>
+              </div>
+            </div>
+            <span class="date-total" id="rangeTotal" style="display:none"></span>
+            <button id="rangeExportBtn" class="btn-secondary" style="display:none" title="导出范围数据">📤 导出范围</button>
+          </div>
+        </div>
+
         <!-- 时间线 -->
         <section class="card timeline-section">
           <h3>📋 时间线</h3>
@@ -98,6 +120,10 @@
             </div>
           </div>
           <div class="tag-summary" id="tagSummary"></div>
+          <div class="trend-chart-container hidden" id="trendChartContainer">
+            <h4>📈 每日趋势</h4>
+            <canvas id="trendChart" width="800" height="250"></canvas>
+          </div>
         </section>
       </main>
     </div>

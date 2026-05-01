@@ -23,6 +23,9 @@ let timerRunning = false;
 let timerStartTime = null;
 let timerInterval = null;
 let editingId = null;
+let rangeMode = false;
+let rangeStart = '';
+let rangeEnd = '';
 
 // ── DOM refs ───────────────────────────────────
 const $ = (sel) => document.querySelector(sel);
@@ -60,7 +63,16 @@ const dom = {
   editEnd: $('#editEnd'),
   editTag: $('#editTag'),
   saveEditBtn: $('#saveEditBtn'),
-  cancelEditBtn: $('#cancelEditBtn')
+  cancelEditBtn: $('#cancelEditBtn'),
+  rangeToggle: $('#rangeToggle'),
+  rangeBar: $('#rangeBar'),
+  rangePickers: $('#rangePickers'),
+  rangeStartPicker: $('#rangeStartPicker'),
+  rangeEndPicker: $('#rangeEndPicker'),
+  rangeTotal: $('#rangeTotal'),
+  rangeExportBtn: $('#rangeExportBtn'),
+  trendChartContainer: $('#trendChartContainer'),
+  trendChart: $('#trendChart')
 };
 
 // ── Init ───────────────────────────────────────
@@ -145,6 +157,15 @@ function setupEvents() {
   });
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') closeModal();
+  });
+
+  // Range filter events
+  dom.rangeToggle.addEventListener('click', toggleRangeMode);
+  dom.rangeStartPicker.addEventListener('change', onRangeDateChange);
+  dom.rangeEndPicker.addEventListener('change', onRangeDateChange);
+  dom.rangeExportBtn.addEventListener('click', exportRangeCSV);
+  document.querySelectorAll('.preset-btn').forEach(btn => {
+    btn.addEventListener('click', () => applyRangePreset(btn.dataset.preset));
   });
 }
 
@@ -323,10 +344,19 @@ function deleteRecord(id) {
 
 // ── Render ─────────────────────────────────────
 function renderAll() {
-  const dayRecords = getDayRecords(currentDate);
-  renderTimeline(dayRecords);
-  renderStats(dayRecords);
-  updateDateUI();
+  if (rangeMode && rangeStart && rangeEnd) {
+    const rangeRecords = getRangeRecords(rangeStart, rangeEnd);
+    renderTimelineForRange(rangeRecords);
+    renderStatsForRange(rangeRecords);
+    renderDailyTrendChart(rangeRecords);
+    updateRangeUI(rangeRecords);
+    updateDateUI();
+  } else {
+    const dayRecords = getDayRecords(currentDate);
+    renderTimeline(dayRecords);
+    renderStats(dayRecords);
+    updateDateUI();
+  }
 }
 
 function getDayRecords(dateStr) {
@@ -657,8 +687,14 @@ function toggleTheme() {
   try { localStorage.setItem('timetracker-theme', next); } catch(e) {}
 
   // Redraw charts for new theme
-  const dayRecords = getDayRecords(currentDate);
-  renderStats(dayRecords);
+  if (rangeMode && rangeStart && rangeEnd) {
+    const rangeRecords = getRangeRecords(rangeStart, rangeEnd);
+    renderStatsForRange(rangeRecords);
+    renderDailyTrendChart(rangeRecords);
+  } else {
+    const dayRecords = getDayRecords(currentDate);
+    renderStats(dayRecords);
+  }
 }
 
 function loadTheme() {
@@ -755,6 +791,376 @@ function parseCSVLine(line) {
   }
   result.push(current);
   return result;
+}
+
+// ── Range Filter ────────────────────────────────
+function toggleRangeMode() {
+  rangeMode = !rangeMode;
+  if (rangeMode) {
+    if (!rangeStart || !rangeEnd) {
+      rangeStart = currentDate;
+      rangeEnd = currentDate;
+      dom.rangeStartPicker.value = rangeStart;
+      dom.rangeEndPicker.value = rangeEnd;
+    }
+    dom.rangeBar.classList.remove('hidden');
+    dom.rangePickers.style.display = 'flex';
+    dom.rangeTotal.style.display = '';
+    dom.rangeExportBtn.style.display = '';
+    dom.rangeToggle.textContent = '📅 关闭范围';
+  } else {
+    dom.rangePickers.style.display = 'none';
+    dom.rangeTotal.style.display = 'none';
+    dom.rangeExportBtn.style.display = 'none';
+    dom.trendChartContainer.classList.add('hidden');
+    dom.rangeToggle.textContent = '📅 时间范围';
+  }
+  renderAll();
+}
+
+function onRangeDateChange() {
+  rangeStart = dom.rangeStartPicker.value;
+  rangeEnd = dom.rangeEndPicker.value;
+  if (rangeStart && rangeEnd) {
+    renderAll();
+    updatePresetActiveState();
+  }
+}
+
+function applyRangePreset(preset) {
+  const today = new Date();
+  switch (preset) {
+    case 'today':
+      rangeStart = toDateStr(today);
+      rangeEnd = toDateStr(today);
+      break;
+    case 'week':
+      rangeStart = toDateStr(getMonday(today));
+      rangeEnd = toDateStr(getSunday(today));
+      break;
+    case 'month':
+      rangeStart = toDateStr(new Date(today.getFullYear(), today.getMonth(), 1));
+      rangeEnd = toDateStr(new Date(today.getFullYear(), today.getMonth() + 1, 0));
+      break;
+    case 'last7':
+      rangeEnd = toDateStr(today);
+      rangeStart = toDateStr(new Date(today.getTime() - 6 * 86400000));
+      break;
+    case 'last30':
+      rangeEnd = toDateStr(today);
+      rangeStart = toDateStr(new Date(today.getTime() - 29 * 86400000));
+      break;
+  }
+  dom.rangeStartPicker.value = rangeStart;
+  dom.rangeEndPicker.value = rangeEnd;
+  renderAll();
+  updatePresetActiveState();
+}
+
+function updatePresetActiveState() {
+  document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+  const today = getToday();
+  const now = new Date();
+  const mon = toDateStr(getMonday(now));
+  const sun = toDateStr(getSunday(now));
+  const mStart = toDateStr(new Date(now.getFullYear(), now.getMonth(), 1));
+  const mEnd = toDateStr(new Date(now.getFullYear(), now.getMonth() + 1, 0));
+  const l7 = toDateStr(new Date(now.getTime() - 6 * 86400000));
+  const l30 = toDateStr(new Date(now.getTime() - 29 * 86400000));
+
+  if (rangeStart === today && rangeEnd === today)
+    document.querySelector('[data-preset="today"]').classList.add('active');
+  else if (rangeStart === mon && rangeEnd === sun)
+    document.querySelector('[data-preset="week"]').classList.add('active');
+  else if (rangeStart === mStart && rangeEnd === mEnd)
+    document.querySelector('[data-preset="month"]').classList.add('active');
+  else if (rangeStart === l7 && rangeEnd === today)
+    document.querySelector('[data-preset="last7"]').classList.add('active');
+  else if (rangeStart === l30 && rangeEnd === today)
+    document.querySelector('[data-preset="last30"]').classList.add('active');
+}
+
+function getRangeRecords(startStr, endStr) {
+  const start = new Date(startStr + 'T00:00:00');
+  const end = new Date(endStr + 'T23:59:59.999');
+  return records
+    .filter(r => {
+      const d = new Date(r.startTime);
+      return d >= start && d <= end;
+    })
+    .sort((a, b) => new Date(a.startTime) - new Date(b.startTime));
+}
+
+function updateRangeUI(rangeRecords) {
+  const totalMs = rangeRecords.reduce((s, r) => s + r.duration, 0);
+  const totalH = (totalMs / 3600000).toFixed(1);
+  const days = countDaysInRange(rangeStart, rangeEnd);
+  const avgH = days > 0 ? (totalMs / 3600000 / days).toFixed(1) : '0.0';
+  dom.rangeTotal.textContent =
+    `范围共 ${totalH}h | ${rangeRecords.length} 条 | 日均 ${avgH}h | ${days} 天`;
+}
+
+function renderTimelineForRange(rangeRecords) {
+  if (rangeRecords.length === 0) {
+    dom.timeline.innerHTML = '<div class="empty-state">该时间范围内没有记录</div>';
+    return;
+  }
+
+  const groups = {};
+  for (const r of rangeRecords) {
+    if (!groups[r.date]) groups[r.date] = [];
+    groups[r.date].push(r);
+  }
+
+  const dates = Object.keys(groups).sort();
+  let html = '';
+
+  for (const date of dates) {
+    const dayRecords = groups[date];
+    const dayTotalMs = dayRecords.reduce((s, r) => s + r.duration, 0);
+    const dayTotalStr = formatDuration(dayTotalMs);
+
+    html += `<div class="timeline-date-group">
+      <div class="timeline-date-header">📅 ${date} (${formatDayOfWeek(date)}) &mdash; ${dayTotalStr} &middot; ${dayRecords.length} 条</div>`;
+
+    for (const r of dayRecords) {
+      const start = new Date(r.startTime);
+      const end = new Date(r.endTime);
+      const timeStr = formatTime(start) + ' - ' + formatTime(end);
+      const durStr = formatDuration(r.duration);
+      html += `
+        <div class="timeline-item tag-${r.tag}">
+          <span class="timeline-time">${timeStr}</span>
+          <div class="timeline-info">
+            <span class="timeline-activity">${escHtml(r.activity)}</span>
+            <span class="timeline-tag tag-badge-${r.tag}">${TAG_ICONS[r.tag]} ${r.tag}</span>
+          </div>
+          <span class="timeline-duration">${durStr}</span>
+          <div class="timeline-actions">
+            <button class="btn-sm" data-edit="${r.id}">编辑</button>
+            <button class="btn-sm danger" data-del="${r.id}">删除</button>
+          </div>
+        </div>`;
+    }
+    html += '</div>';
+  }
+
+  dom.timeline.innerHTML = html;
+  dom.timeline.querySelectorAll('[data-edit]').forEach(btn => {
+    btn.addEventListener('click', () => openEditModal(btn.dataset.edit));
+  });
+  dom.timeline.querySelectorAll('[data-del]').forEach(btn => {
+    btn.addEventListener('click', () => deleteRecord(btn.dataset.del));
+  });
+}
+
+function renderStatsForRange(rangeRecords) {
+  const tagMap = {};
+  for (const r of rangeRecords) {
+    if (!tagMap[r.tag]) tagMap[r.tag] = 0;
+    tagMap[r.tag] += r.duration;
+  }
+
+  const days = countDaysInRange(rangeStart, rangeEnd);
+  const tagData = Object.entries(tagMap).map(([tag, ms]) => ({
+    tag,
+    minutes: Math.round(ms / 60000),
+    hours: ms / 3600000,
+    avgPerDay: ms / 3600000 / (days || 1)
+  }));
+
+  tagData.sort((a, b) => b.minutes - a.minutes);
+  drawPieChart(dom.pieChart, tagData);
+  drawBarChart(dom.barChart, tagData);
+  renderTagSummaryForRange(tagData);
+}
+
+function renderTagSummaryForRange(tagData) {
+  const totalMin = tagData.reduce((s, d) => s + d.minutes, 0);
+  if (tagData.length === 0) {
+    dom.tagSummary.innerHTML = '<span style="color:var(--text-muted)">暂无统计数据</span>';
+    return;
+  }
+  let html = '';
+  for (const d of tagData) {
+    const pct = totalMin > 0 ? Math.round(d.minutes / totalMin * 100) : 0;
+    html += `
+      <div class="tag-summary-item">
+        <span class="tag-dot" style="background:${TAG_COLORS[d.tag]}"></span>
+        <span>${TAG_ICONS[d.tag]} ${d.tag}</span>
+        <span class="tag-summary-value">${d.hours.toFixed(1)}h (${pct}%) &middot; 日均 ${d.avgPerDay.toFixed(1)}h</span>
+      </div>`;
+  }
+  dom.tagSummary.innerHTML = html;
+}
+
+function renderDailyTrendChart(rangeRecords) {
+  dom.trendChartContainer.classList.remove('hidden');
+  const canvas = dom.trendChart;
+  const w = 800, h = 250;
+  const ctx = setupCanvas(canvas, w, h);
+
+  const textColor = getComputedStyle(document.documentElement).getPropertyValue('--text').trim();
+  const textSec = getComputedStyle(document.documentElement).getPropertyValue('--text-secondary').trim();
+  const gridColor = getComputedStyle(document.documentElement).getPropertyValue('--border').trim();
+
+  ctx.clearRect(0, 0, w, h);
+
+  const days = buildDateArray(rangeStart, rangeEnd);
+  const dailyData = days.map(dateStr => {
+    const dayRecs = rangeRecords.filter(r => r.date === dateStr);
+    const totalMs = dayRecs.reduce((s, r) => s + r.duration, 0);
+    const tagMap = {};
+    for (const r of dayRecs) {
+      if (!tagMap[r.tag]) tagMap[r.tag] = 0;
+      tagMap[r.tag] += r.duration;
+    }
+    return { date: dateStr, totalMs, tagMap };
+  });
+
+  if (dailyData.length === 0) {
+    ctx.fillStyle = textSec;
+    ctx.font = '14px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('暂无数据', w / 2, h / 2);
+    return;
+  }
+
+  const pad = { top: 24, right: 40, bottom: 40, left: 48 };
+  const chartW = w - pad.left - pad.right;
+  const chartH = h - pad.top - pad.bottom;
+  const barCount = dailyData.length;
+  const barWidth = Math.max(Math.min(chartW / barCount - 4, 40), 6);
+  const barGap = (chartW - barWidth * barCount) / (barCount + 1);
+
+  const maxTotalH = Math.max(...dailyData.map(d => d.totalMs / 3600000), 0.5);
+  const ySteps = 4;
+  const yMax = Math.ceil(maxTotalH * 1.2 / 0.5) * 0.5 || 1;
+
+  for (let i = 0; i <= ySteps; i++) {
+    const y = pad.top + (chartH / ySteps) * i;
+    const val = yMax - (yMax / ySteps) * i;
+    ctx.fillStyle = textSec;
+    ctx.font = '10px sans-serif';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(val.toFixed(1) + 'h', pad.left - 6, y);
+
+    ctx.strokeStyle = gridColor;
+    ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    ctx.moveTo(pad.left, y);
+    ctx.lineTo(pad.left + chartW, y);
+    ctx.stroke();
+  }
+
+  const tagOrder = ['工作', '学习', '生活', '娱乐'];
+  dailyData.forEach((d, i) => {
+    const x = pad.left + barGap + i * (barWidth + barGap);
+    let stackY = pad.top + chartH;
+    for (const tag of tagOrder) {
+      const ms = d.tagMap[tag] || 0;
+      if (ms > 0) {
+        const segH = (ms / 3600000 / yMax) * chartH;
+        ctx.fillStyle = TAG_COLORS[tag];
+        ctx.fillRect(x, stackY - segH, barWidth, segH);
+        stackY -= segH;
+      }
+    }
+
+    const showLabel = barCount <= 10 || i % Math.max(1, Math.floor(barCount / 8)) === 0;
+    if (showLabel) {
+      ctx.save();
+      ctx.translate(x + barWidth / 2, pad.top + chartH + 12);
+      ctx.fillStyle = textSec;
+      ctx.font = '10px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      const parts = d.date.split('-');
+      ctx.fillText(parts[1] + '/' + parts[2], 0, 0);
+      ctx.restore();
+    }
+  });
+
+  // Legend
+  let lx = pad.left + chartW - 180;
+  if (lx < pad.left) lx = pad.left;
+  for (const tag of tagOrder) {
+    ctx.fillStyle = TAG_COLORS[tag];
+    ctx.fillRect(lx, pad.top - 20, 10, 10);
+    ctx.fillStyle = textSec;
+    ctx.font = '10px sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(tag, lx + 13, pad.top - 15);
+    lx += 42;
+  }
+}
+
+async function exportRangeCSV() {
+  const rangeRecords = getRangeRecords(rangeStart, rangeEnd);
+  if (rangeRecords.length === 0) {
+    dom.statusText.textContent = '范围内没有记录可导出';
+    return;
+  }
+
+  let csv = '活动,标签,开始时间,结束时间,耗时(分钟),日期\n';
+  for (const r of rangeRecords) {
+    const durMin = Math.round(r.duration / 60000);
+    const start = formatLocal(new Date(r.startTime));
+    const end = formatLocal(new Date(r.endTime));
+    csv += `"${r.activity}","${r.tag}","${start}","${end}",${durMin},"${r.date}"\n`;
+  }
+
+  const result = await window.electronAPI.exportCSV(csv);
+  if (result.success) {
+    dom.statusText.textContent = `已导出范围数据 (${rangeRecords.length} 条) 到: ${result.path}`;
+  } else {
+    dom.statusText.textContent = '导出已取消';
+  }
+}
+
+// ── Date Helpers for Range ──────────────────────
+const DAY_NAMES = ['日', '一', '二', '三', '四', '五', '六'];
+
+function formatDayOfWeek(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00');
+  return '周' + DAY_NAMES[d.getDay()];
+}
+
+function getMonday(d) {
+  const date = new Date(d);
+  const day = date.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  date.setDate(date.getDate() + diff);
+  return date;
+}
+
+function getSunday(d) {
+  const date = new Date(d);
+  const day = date.getDay();
+  const diff = day === 0 ? 0 : 7 - day;
+  date.setDate(date.getDate() + diff);
+  return date;
+}
+
+function buildDateArray(startStr, endStr) {
+  const dates = [];
+  const start = new Date(startStr + 'T00:00:00');
+  const end = new Date(endStr + 'T00:00:00');
+  const current = new Date(start);
+  while (current <= end) {
+    dates.push(toDateStr(current));
+    current.setDate(current.getDate() + 1);
+  }
+  return dates;
+}
+
+function countDaysInRange(startStr, endStr) {
+  const start = new Date(startStr + 'T00:00:00');
+  const end = new Date(endStr + 'T00:00:00');
+  return Math.round((end - start) / 86400000) + 1;
 }
 
 // ── Start ──────────────────────────────────────
