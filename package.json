@@ -20,7 +20,15 @@
       "output": "dist"
     },
     "win": {
-      "target": "portable"
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "icon.ico"
     },
     "portable": {
       "artifactName": "TimeTracker.exe"
